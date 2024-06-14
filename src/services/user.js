@@ -18,6 +18,7 @@ async function fetchOne(id) {
             user = res.rows[0];
         }
     }
+    cache.set(`user_${id}`, user);
     return user;
 }
 

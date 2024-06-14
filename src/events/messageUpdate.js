@@ -6,13 +6,13 @@ const cache = require('../services/cache');
 module.exports = {
     name: Events.MessageUpdate,
     async execute(oldMessage, newMessage) {
-        if (oldMessage.author.bot) return;
+        if (newMessage.author.bot) return; // oldMessage doesn't return user information?
         if (oldMessage.content === newMessage.content) return;
 
-        const user = await fetchOne(message.author.id);
+        const user = await fetchOne(newMessage.author.id);
 
-        if (user.activated) {   
-            const bot_reply = cache.get(`reply_${oldMessage.id}`);
+        if (user.activated) {
+            const bot_reply = cache.get(`reply_${newMessage.id}`);
             if (bot_reply) {
                 let platforms = cache.get('platforms');
                 if (!platforms) {
@@ -20,18 +20,20 @@ module.exports = {
                     cache.set('platforms', platforms);
                 }
                 
-                platforms.forEach((platform) => {
-                    const match = message.content.match(platform.regex);
+                platforms.forEach(async (platform) => {
+                    let regex = platform.regex.replace(/\\\\/g, '\\');
+                    const match = newMessage.content.match(regex);
                     if (match) {
-                        if (!message.guild) {
-                            client.channels.fetch(message.channelId).then((channel) => {
-                                channel.messages.fetch(bot_reply).then((message) => {
-                                    message.edit(match[0].replace(platform.original_url, platform.replacement_url));
+                        if (!newMessage.guild) {
+                            client.channels.fetch(newMessage.channelId).then(async (channel) => {
+                                channel.messages.fetch(bot_reply).then(async (message) => {
+                                    await message.edit(match[0].replace(platform.original_url, platform.replacement_url));
                                 });
                             });
                         } else {
-                            const message = oldMessage.channel.messages.fetch(bot_reply);
-                            message.edit(match[0].replace(platform.original_url, platform.replacement_url));
+                            newMessage.channel.messages.fetch(bot_reply).then(async (message) => {
+                                await message.edit(match[0].replace(platform.original_url, platform.replacement_url));
+                            });
                         }
                     }
                 });
