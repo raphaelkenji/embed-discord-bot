@@ -29,7 +29,7 @@ module.exports = {
                             });
                         });
                     } else {
-                        message.suppressEmbeds(true);
+                        // message.suppressEmbeds(true); // Temporarily removed until I can make this better
                         const reply = await message.reply(match[0].replace(platform.original_url, platform.replacement_url));
                         cache.set(`reply_${message.id}`, reply.id, 300);
                     }
