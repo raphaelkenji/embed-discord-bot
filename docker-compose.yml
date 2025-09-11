@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: discord-bot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: discord_bot
+      POSTGRES_USER: discord_user
+      POSTGRES_PASSWORD: discord_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - discord-bot-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U discord_user -d discord_bot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  discordembedbot:
+    image: discordembedbot
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: discord-bot-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: discord_bot
+      DB_USER: discord_user
+      DB_PASS: discord_password
+      CACHE_TTL: 300
+      CACHE_CHECK_PERIOD: 600
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - discord-bot-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  discord-bot-network:
+    driver: bridge

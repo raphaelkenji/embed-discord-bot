@@ -1,0 +1,9 @@
+services:
+  discordembedbot:
+    image: discordembedbot
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - 9229:9229
+    command: ["node", "--inspect=0.0.0.0:9229", "dist/index.ts"]
