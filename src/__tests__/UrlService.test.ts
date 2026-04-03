@@ -67,12 +67,15 @@ describe('UrlService.processUrlReplacement', () => {
   });
 
   it('handles invalid regex gracefully', () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
     const platform = makePlatform({ regex: '[invalid' });
     const result = urlService.processUrlReplacement(
       'https://twitter.com/user',
       platform
     );
     expect(result).toBeNull();
+    expect(consoleSpy).toHaveBeenCalled();
+    consoleSpy.mockRestore();
   });
 
   it('works with Instagram replacement', () => {
