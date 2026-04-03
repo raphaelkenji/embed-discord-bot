@@ -23,7 +23,7 @@ INSERT INTO urls (original_url, regex, replacement_url)
 VALUES 
     ('x.com', 'https?://(?:www\.)?x\.com/([^/]+)/status/(\d+)(?:\?[^\\s]*)?', 'https://vxtwitter.com/$1/status/$2'),
     ('twitter.com', 'https?://(?:www\.)?twitter\.com/([^/]+)/status/(\d+)(?:\?[^\\s]*)?', 'https://vxtwitter.com/$1/status/$2'),
-    ('instagram.com', 'https?://(?:www\.)?instagram\.com/p/([^/]+)(?:\?[^\\s]*)?', 'https://ddinstagram.com/p/$1'),
+    ('instagram.com', 'https?://(?:www\.)?instagram\.com/(p|reel)/([^/?#]+)(?:/)?(?:\?[^\\s]*)?', 'https://ddinstagram.com/$1/$2'),
     ('tiktok.com', 'https?://(?:www\.)?tiktok\.com/@([^/]+)/video/(\d+)(?:\?[^\\s]*)?', 'https://vxtiktok.com/@$1/video/$2')
 ON CONFLICT (original_url) DO UPDATE SET 
     regex = EXCLUDED.regex,
