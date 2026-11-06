@@ -4,7 +4,7 @@
 param(
     [Parameter(Position=0)]
     [string]$Command = "help",
-    
+
     [Parameter(Position=1)]
     [string]$Service
 )
@@ -46,28 +46,21 @@ function Test-Docker {
 function Start-DevDB {
     if (-not (Test-Docker)) { return }
     Write-Status "Starting PostgreSQL for development..."
-    docker-compose up -d postgres
+    docker compose -f docker-compose.yml -f docker-compose.debug.yml up -d postgres
     Write-Success "PostgreSQL is running on port 5432"
-    Write-Status "Database: discord_bot"
-    Write-Status "User: discord_user"
-    Write-Status "Password: discord_password"
+    Write-Status "Database and user: configured in the env file"
 }
 
 # Start PostgreSQL with pgAdmin
 function Start-DevDBAdmin {
-    if (-not (Test-Docker)) { return }
-    Write-Status "Starting PostgreSQL with pgAdmin..."
-    docker-compose --profile admin up -d postgres pgadmin
-    Write-Success "PostgreSQL is running on port 5432"
-    Write-Success "pgAdmin is running on http://localhost:8080"
-    Write-Status "pgAdmin login: admin@discord-bot.local / admin"
+    Write-Warning "pgAdmin is not configured. Use db-shell instead."
 }
 
 # Start full stack (DB + Bot)
 function Start-All {
     if (-not (Test-Docker)) { return }
     Write-Status "Starting full Discord Bot stack..."
-    docker-compose up -d
+    docker compose up -d
     Write-Success "All services are running"
 }
 
@@ -75,7 +68,7 @@ function Start-All {
 function Stop-All {
     if (-not (Test-Docker)) { return }
     Write-Status "Stopping all services..."
-    docker-compose down
+    docker compose down
     Write-Success "All services stopped"
 }
 
@@ -84,14 +77,14 @@ function Show-Logs {
     param([string]$Service = "discordembedbot")
     if (-not (Test-Docker)) { return }
     Write-Status "Showing logs for $Service..."
-    docker-compose logs -f $Service
+    docker compose logs -f $Service
 }
 
 # Database shell
 function Connect-DBShell {
     if (-not (Test-Docker)) { return }
     Write-Status "Connecting to PostgreSQL shell..."
-    docker-compose exec postgres psql -U discord_user -d discord_bot
+    docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 }
 
 # Reset database (WARNING: This will delete all data!)
@@ -100,9 +93,9 @@ function Reset-Database {
     $confirmation = Read-Host "Are you sure you want to reset the database? This will delete ALL data! (y/N)"
     if ($confirmation -eq 'y' -or $confirmation -eq 'Y') {
         Write-Warning "Resetting database..."
-        docker-compose down
+        docker compose down
         docker volume rm discord-embed-bot_postgres_data 2>$null
-        docker-compose up -d postgres
+        docker compose -f docker-compose.yml -f docker-compose.debug.yml up -d postgres
         Write-Success "Database reset complete"
     }
     else {
@@ -114,8 +107,8 @@ function Reset-Database {
 function Restart-Bot {
     if (-not (Test-Docker)) { return }
     Write-Status "Rebuilding and restarting bot..."
-    docker-compose build discordembedbot
-    docker-compose up -d discordembedbot
+    docker compose build discordembedbot
+    docker compose up -d discordembedbot
     Write-Success "Bot rebuilt and restarted"
 }
 

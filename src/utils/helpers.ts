@@ -9,8 +9,8 @@ export function truncateText(text: string, maxLength: number): string {
 
 export function isValidUrl(url: string): boolean {
   try {
-    new URL(url);
-    return true;
+    const parsed = new URL(url);
+    return ["http:", "https:"].includes(parsed.protocol);
   } catch {
     return false;
   }
@@ -18,7 +18,7 @@ export function isValidUrl(url: string): boolean {
 
 export function isValidRegex(pattern: string): boolean {
   try {
-    new RegExp(pattern);
+    new RegExp(sanitizeRegexPattern(pattern));
     return true;
   } catch {
     return false;

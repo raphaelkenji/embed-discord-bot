@@ -2,6 +2,7 @@ import { UserModel } from '../models';
 import { User, CreateUserData, UpdateUserData } from '../types';
 import { cacheService } from '../config/cache';
 import { dbPool } from '../config/database';
+import { CACHE_KEYS } from '../utils/constants';
 
 export class UserService {
   private userModel: UserModel;
@@ -15,16 +16,18 @@ export class UserService {
   }
 
   async findById(id: string): Promise<User> {
-    let user = cacheService.get<User>(`user_${id}`);
+    const cacheKey = `${CACHE_KEYS.USER_PREFIX}${id}`;
+    let user = cacheService.get<User>(cacheKey);
     
     if (!user) {
       const foundUser = await this.userModel.findById(id);
       
       if (!foundUser) {
-        user = await this.create({ id, activated: true });
+        user = await this.userModel.findOrCreate(id);
+        cacheService.set(cacheKey, user);
       } else {
         user = foundUser;
-        cacheService.set(`user_${id}`, user);
+        cacheService.set(cacheKey, user);
       }
     }
     
@@ -34,7 +37,7 @@ export class UserService {
   async create(userData: CreateUserData): Promise<User> {
     const user = await this.userModel.create(userData);
     
-    cacheService.set(`user_${user.id}`, user);
+    cacheService.set(`${CACHE_KEYS.USER_PREFIX}${user.id}`, user);
     
     return user;
   }
@@ -43,7 +46,7 @@ export class UserService {
     const user = await this.userModel.update(id, userData);
     
     if (user) {
-      cacheService.set(`user_${id}`, user);
+      cacheService.set(`${CACHE_KEYS.USER_PREFIX}${id}`, user);
     }
     
     return user;
@@ -53,14 +56,14 @@ export class UserService {
     const deleted = await this.userModel.delete(id);
     
     if (deleted) {
-      cacheService.del(`user_${id}`);
+      cacheService.del(`${CACHE_KEYS.USER_PREFIX}${id}`);
     }
     
     return deleted;
   }
 
   async exists(id: string): Promise<boolean> {
-    if (cacheService.has(`user_${id}`)) {
+    if (cacheService.has(`${CACHE_KEYS.USER_PREFIX}${id}`)) {
       return true;
     }
     

@@ -1,17 +1,23 @@
 import { Client, Collection, GatewayIntentBits, Partials } from "discord.js";
 import fs from "fs";
+import { createServer, Server } from "http";
 import path from "path";
 import { environment } from "./config/environment";
+import { database } from "./config/database";
 import { logger } from "./utils";
+import { BotCommand } from "./types";
 
 declare module "discord.js" {
   export interface Client {
-    commands: Collection<string, any>;
+    commands: Collection<string, BotCommand>;
+    commandsReady?: boolean;
   }
 }
 
 class DiscordBot {
   private client: Client;
+  private healthServer?: Server;
+  private stopping = false;
 
   constructor() {
     this.client = new Client({
@@ -24,7 +30,7 @@ class DiscordBot {
       partials: [Partials.Channel, Partials.Message, Partials.Reaction],
     });
 
-    this.client.commands = new Collection();
+    this.client.commands = new Collection<string, BotCommand>();
   }
 
   private async loadCommands(): Promise<void> {
@@ -89,11 +95,11 @@ class DiscordBot {
           if ("name" in eventData && "execute" in eventData) {
             if (eventData.once) {
               this.client.once(eventData.name, (...args: any[]) =>
-                eventData.execute(...args)
+                Promise.resolve().then(() => eventData.execute(...args)).catch(error => logger.error(`Event ${eventData.name} failed:`, error))
               );
             } else {
               this.client.on(eventData.name, (...args: any[]) =>
-                eventData.execute(...args)
+                Promise.resolve().then(() => eventData.execute(...args)).catch(error => logger.error(`Event ${eventData.name} failed:`, error))
               );
             }
             logger.info(`Loaded event: ${eventData.name}`);
@@ -134,6 +140,11 @@ class DiscordBot {
     try {
       logger.info("Starting shutdown process...");
 
+      if (this.stopping) return;
+      this.stopping = true;
+      this.healthServer?.close();
+      const deadline = setTimeout(() => process.exit(1), 25000);
+      deadline.unref();
       if (this.client) {
         this.client.destroy();
         logger.info("Discord client destroyed");
@@ -154,10 +165,32 @@ class DiscordBot {
     try {
       logger.info("Starting Discord bot...");
 
+      this.setupGlobalErrorHandlers();
       await this.loadCommands();
       await this.loadEvents();
-
-      this.setupGlobalErrorHandlers();
+      await database.connect();
+      const schemaClient = await database.getPool().connect();
+      try {
+        await schemaClient.query('BEGIN');
+        await schemaClient.query(fs.readFileSync(path.join(__dirname, '../database/init/01_schema.sql'), 'utf8'));
+        await schemaClient.query('COMMIT');
+      } catch (error) {
+        await schemaClient.query('ROLLBACK');
+        throw error;
+      } finally {
+        schemaClient.release();
+      }
+      this.healthServer = createServer(async (_request, response) => {
+        try {
+          if (!this.client.isReady() || !this.client.commandsReady || this.stopping) throw new Error('Discord unavailable');
+          await database.getPool().query('SELECT 1');
+          response.writeHead(200).end('ready');
+        } catch {
+          response.writeHead(503).end('unavailable');
+        }
+      });
+      this.healthServer.on('error', error => { logger.error('Health server failed:', error); process.exit(1); });
+      this.healthServer.listen(8080, '127.0.0.1');
 
       await this.client.login(environment.BOT_TOKEN);
     } catch (error) {

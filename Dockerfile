@@ -1,34 +1,18 @@
-FROM node:25-alpine
-
+FROM node:26-alpine AS build
 WORKDIR /app
-
-RUN apk add --no-cache \
-    git \
-    python3 \
-    make \
-    g++
-
-COPY package*.json ./
-COPY tsconfig.json ./
-
+COPY package*.json tsconfig.json ./
 RUN npm ci
+COPY src ./src
+RUN npm run build && npm prune --omit=dev
 
-COPY src/ ./src/
-
-RUN npm run build
-
-RUN npm prune --production
-
-RUN mkdir -p logs
-
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S discord-bot -u 1001 -G nodejs
-
-RUN chown -R discord-bot:nodejs /app
-
-USER discord-bot
-
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD node -e "console.log('Bot is running')" || exit 1
-
-CMD ["npm", "start"]
+FROM node:26-alpine
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --chown=node:node package.json ./
+COPY --chown=node:node database ./database
+USER node
+HEALTHCHECK --interval=30s --timeout=8s --start-period=60s --retries=3 \
+    CMD node -e "fetch('http://127.0.0.1:8080').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["node", "dist/index.js"]
