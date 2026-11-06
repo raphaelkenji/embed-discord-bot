@@ -1,9 +1,8 @@
 services:
-  discordembedbot:
-    image: discordembedbot
-    build:
-      context: .
-      dockerfile: ./Dockerfile
+  postgres:
     ports:
-      - 9229:9229
-    command: ["node", "--inspect=0.0.0.0:9229", "dist/index.ts"]
+      - "127.0.0.1:5432:5432"
+  discordembedbot:
+    ports:
+      - "127.0.0.1:9229:9229"
+    command: ["node", "--inspect=0.0.0.0:9229", "dist/index.js"]

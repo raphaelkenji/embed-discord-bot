@@ -13,6 +13,8 @@ class DatabaseConnection {
       password: environment.DB_PASS,
       port: environment.DB_PORT,
       max: 10,
+      statement_timeout: 5000,
+      query_timeout: 6000,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
     };
@@ -37,13 +39,8 @@ class DatabaseConnection {
   }
 
   public async connect(): Promise<void> {
-    try {
-      await this.pool.connect();
-      console.log('Database connected successfully');
-    } catch (error) {
-      console.error('Database connection failed:', error);
-      throw error;
-    }
+    await this.pool.query('SELECT 1');
+    console.log('Database connected successfully');
   }
 
   public async disconnect(): Promise<void> {

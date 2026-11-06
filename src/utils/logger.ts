@@ -22,7 +22,7 @@ class Logger {
     const baseMessage = `[${timestamp}] [${level}] ${message}`;
     
     if (data) {
-      return `${baseMessage} ${JSON.stringify(data, null, 2)}`;
+      return `${baseMessage} ${JSON.stringify(data, (_key, value) => value instanceof Error ? { name: value.name, message: value.message, stack: value.stack } : value, 2)}`;
     }
     
     return baseMessage;

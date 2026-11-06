@@ -4,15 +4,17 @@ import {
   EmbedBuilder,
 } from "discord.js";
 import { UrlService } from "../../services";
-import { logger, isValidUrl, isValidRegex } from "../../utils";
+import { logger, isValidUrl, isValidRegex, truncateText } from "../../utils";
 
 export default {
-  whitelist: true,
+  ownerOnly: true,
   data: new SlashCommandBuilder()
     .setName("url")
     .setDescription("Manage URLs")
+    .setContexts(0)
     .addSubcommand((subcommand) =>
       subcommand.setName("list").setDescription("List URLs")
+        .addIntegerOption(option => option.setName("page").setDescription("Page number").setMinValue(1))
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -20,19 +22,19 @@ export default {
         .setDescription("Add a URL")
         .addStringOption((option) =>
           option
-            .setName("original_url")
+            .setName("original_url").setMaxLength(500)
             .setDescription("The URL to add")
             .setRequired(true)
         )
         .addStringOption((option) =>
           option
-            .setName("regex")
+            .setName("regex").setMaxLength(1000)
             .setDescription("The regex to match")
             .setRequired(true)
         )
         .addStringOption((option) =>
           option
-            .setName("replacement_url")
+            .setName("replacement_url").setMaxLength(500)
             .setDescription("The URL to replace with")
             .setRequired(true)
         )
@@ -71,7 +73,7 @@ export default {
         )
         .addStringOption((option) =>
           option
-            .setName("value")
+            .setName("value").setMaxLength(1000)
             .setDescription("The value to update the parameter to")
             .setRequired(true)
         )
@@ -86,25 +88,41 @@ export default {
         case "list": {
           const urls = await urlService.findAll();
           if (!urls.length) {
-            await interaction.reply("No URLs found");
+            await interaction.editReply("No URLs found");
             return;
           }
 
-          const embed = new EmbedBuilder()
-            .setTitle("URL Configurations")
-            .setColor(0x0099ff)
-            .setTimestamp();
+          const pageSize = 4;
+          const pages: EmbedBuilder[] = [];
 
-          const urlList = urls
-            .map(
-              (url) =>
-                `**ID:** ${url.id}\n**Original:** ${url.original_url}\n**Replacement:** ${url.replacement_url}\n**Regex:** \`${url.regex}\``
-            )
-            .join("\n\n");
+          for (let start = 0; start < urls.length; start += pageSize) {
+            const pageUrls = urls.slice(start, start + pageSize);
+            const pageNumber = Math.floor(start / pageSize) + 1;
+            const pageCount = Math.ceil(urls.length / pageSize);
+            const description = pageUrls
+              .map((url) =>
+                truncateText(
+                  `**ID:** ${url.id}\n**Original:** ${url.original_url}\n**Replacement:** ${url.replacement_url}\n**Regex:** \`${url.regex}\``,
+                  950
+                )
+              )
+              .join("\n\n");
 
-          embed.setDescription(urlList);
+            pages.push(
+              new EmbedBuilder()
+                .setTitle(`URL Configurations (${pageNumber}/${pageCount})`)
+                .setColor(0x0099ff)
+                .setDescription(description)
+                .setTimestamp()
+            );
+          }
 
-          await interaction.reply({ embeds: [embed] });
+          const page = interaction.options.getInteger("page") ?? 1;
+          if (page > pages.length) {
+            await interaction.editReply(`Page must be between 1 and ${pages.length}.`);
+          } else {
+            await interaction.editReply({ embeds: [pages[page - 1]] });
+          }
           break;
         }
 
@@ -120,23 +138,20 @@ export default {
           );
 
           if (!isValidUrl(originalUrl)) {
-            await interaction.reply({
+            await interaction.editReply({
               content: "Invalid original URL format.",
-              ephemeral: true,
             });
             return;
           }
           if (!isValidUrl(replacementUrl)) {
-            await interaction.reply({
+            await interaction.editReply({
               content: "Invalid replacement URL format.",
-              ephemeral: true,
             });
             return;
           }
           if (!isValidRegex(regex)) {
-            await interaction.reply({
+            await interaction.editReply({
               content: "Invalid regex pattern.",
-              ephemeral: true,
             });
             return;
           }
@@ -162,7 +177,7 @@ export default {
             )
             .setTimestamp();
 
-          await interaction.reply({ embeds: [embed] });
+          await interaction.editReply({ embeds: [embed] });
           logger.info(`URL configuration added by ${interaction.user.id}:`, {
             urlId: url.id,
           });
@@ -174,16 +189,15 @@ export default {
           const removed = await urlService.delete(id);
 
           if (removed) {
-            await interaction.reply(
+            await interaction.editReply(
               `✅ URL configuration with ID ${id} has been removed.`
             );
             logger.info(
               `URL configuration ${id} removed by ${interaction.user.id}`
             );
           } else {
-            await interaction.reply({
+            await interaction.editReply({
               content: "URL configuration not found or could not be removed.",
-              ephemeral: true,
             });
           }
           break;
@@ -199,18 +213,18 @@ export default {
 
           // Validate input based on parameter
           if (param === "original_url" || param === "replacement_url") {
-            if (!isValidUrl(value)) {
-              await interaction.reply({
+            if (value.length > 500 || !isValidUrl(value)) {
+              await interaction.editReply({
                 content: "Invalid URL format.",
-                ephemeral: true,
+
               });
               return;
             }
           } else if (param === "regex") {
             if (!isValidRegex(value)) {
-              await interaction.reply({
+              await interaction.editReply({
                 content: "Invalid regex pattern.",
-                ephemeral: true,
+
               });
               return;
             }
@@ -218,9 +232,8 @@ export default {
 
           const existingUrl = await urlService.findById(id);
           if (!existingUrl) {
-            await interaction.reply({
+            await interaction.editReply({
               content: "URL configuration not found.",
-              ephemeral: true,
             });
             return;
           }
@@ -238,35 +251,34 @@ export default {
               )
               .setTimestamp();
 
-            await interaction.reply({ embeds: [embed] });
+            await interaction.editReply({ embeds: [embed] });
             logger.info(
               `URL configuration ${id} updated by ${interaction.user.id}:`,
               { param, value }
             );
           } else {
-            await interaction.reply({
+            await interaction.editReply({
               content: "Failed to update URL configuration.",
-              ephemeral: true,
             });
           }
           break;
         }
 
         default:
-          await interaction.reply({
+          await interaction.editReply({
             content: "Invalid subcommand.",
-            ephemeral: true,
+
           });
           break;
       }
     } catch (error) {
       logger.error("Error executing URL command:", error);
 
-      if (!interaction.replied) {
-        await interaction.reply({
+      if (interaction.deferred || !interaction.replied) {
+        await interaction.editReply({
           content:
             "There was an error processing your request. Please try again later.",
-          ephemeral: true,
+
         });
       }
     }

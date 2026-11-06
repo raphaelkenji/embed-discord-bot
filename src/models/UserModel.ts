@@ -22,6 +22,14 @@ export class UserModel {
     return result.rows[0];
   }
 
+  async findOrCreate(id: string): Promise<User> {
+    const result = await this.db.query(
+      'INSERT INTO users (id, activated) VALUES ($1, true) ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id RETURNING *',
+      [id]
+    );
+    return result.rows[0];
+  }
+
   async update(id: string, userData: UpdateUserData): Promise<User | null> {
     const result = await this.db.query(
       'UPDATE users SET activated = $1 WHERE id = $2 RETURNING *',

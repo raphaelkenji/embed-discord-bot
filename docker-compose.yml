@@ -1,53 +1,50 @@
 services:
   postgres:
-    image: postgres:15-alpine
-    container_name: discord-bot-postgres
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: discord_bot
-      POSTGRES_USER: discord_user
-      POSTGRES_PASSWORD: discord_password
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${DB_NAME:?Set DB_NAME in your env file}
+      POSTGRES_USER: ${DB_USER:?Set DB_USER in your env file}
+      POSTGRES_PASSWORD: ${DB_PASS:?Set DB_PASS in your env file}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database/init:/docker-entrypoint-initdb.d
-    networks:
-      - discord-bot-network
+      - postgres18_data:/var/lib/postgresql
+      - ./database/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U discord_user -d discord_bot"]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   discordembedbot:
     image: discordembedbot
-    build:
-      context: .
-      dockerfile: ./Dockerfile
-    container_name: discord-bot-app
+    build: .
     restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      BOT_TOKEN: ${BOT_TOKEN}
+      BOT_TOKEN: ${BOT_TOKEN:?Set BOT_TOKEN in your env file}
+      BOT_OWNER_ID: ${BOT_OWNER_ID:?Set BOT_OWNER_ID in your env file}
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: discord_bot
-      DB_USER: discord_user
-      DB_PASS: discord_password
-      CACHE_TTL: 300
-      CACHE_CHECK_PERIOD: 600
-    volumes:
-      - ./logs:/app/logs
-    networks:
-      - discord-bot-network
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      REGEX_TIMEOUT_MS: ${REGEX_TIMEOUT_MS:-500}
+      CACHE_TTL: ${CACHE_TTL:-300}
+      CACHE_CHECK_PERIOD: ${CACHE_CHECK_PERIOD:-600}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
-  postgres_data:
-    driver: local
-
-networks:
-  discord-bot-network:
-    driver: bridge
+  postgres18_data:

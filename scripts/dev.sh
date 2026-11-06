@@ -38,28 +38,21 @@ check_docker() {
 dev_db() {
     check_docker
     print_status "Starting PostgreSQL for development..."
-    docker-compose up -d postgres
+    docker compose -f docker-compose.yml -f docker-compose.debug.yml up -d postgres
     print_success "PostgreSQL is running on port 5432"
-    print_status "Database: discord_bot"
-    print_status "User: discord_user"
-    print_status "Password: discord_password"
+    print_status "Database and user: configured in the env file"
 }
 
 # Start PostgreSQL with pgAdmin
 dev_db_admin() {
-    check_docker
-    print_status "Starting PostgreSQL with pgAdmin..."
-    docker-compose --profile admin up -d postgres pgadmin
-    print_success "PostgreSQL is running on port 5432"
-    print_success "pgAdmin is running on http://localhost:8080"
-    print_status "pgAdmin login: admin@discord-bot.local / admin"
+    print_error "pgAdmin is not configured. Use db-shell instead."
 }
 
 # Start full stack (DB + Bot)
 start_all() {
     check_docker
     print_status "Starting full Discord Bot stack..."
-    docker-compose up -d
+    docker compose up -d
     print_success "All services are running"
 }
 
@@ -67,7 +60,7 @@ start_all() {
 stop_all() {
     check_docker
     print_status "Stopping all services..."
-    docker-compose down
+    docker compose down
     print_success "All services stopped"
 }
 
@@ -75,14 +68,14 @@ stop_all() {
 logs() {
     service=${1:-discordembedbot}
     print_status "Showing logs for $service..."
-    docker-compose logs -f $service
+    docker compose logs -f $service
 }
 
 # Database shell
 db_shell() {
     check_docker
     print_status "Connecting to PostgreSQL shell..."
-    docker-compose exec postgres psql -U discord_user -d discord_bot
+    docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 }
 
 # Reset database (WARNING: This will delete all data!)
@@ -92,9 +85,9 @@ reset_db() {
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         print_warning "Resetting database..."
-        docker-compose down
+        docker compose down
         docker volume rm discord-embed-bot_postgres_data 2>/dev/null || true
-        docker-compose up -d postgres
+        docker compose -f docker-compose.yml -f docker-compose.debug.yml up -d postgres
         print_success "Database reset complete"
     else
         print_status "Database reset cancelled"
@@ -105,8 +98,8 @@ reset_db() {
 rebuild_bot() {
     check_docker
     print_status "Rebuilding and restarting bot..."
-    docker-compose build discordembedbot
-    docker-compose up -d discordembedbot
+    docker compose build discordembedbot
+    docker compose up -d discordembedbot
     print_success "Bot rebuilt and restarted"
 }
 
